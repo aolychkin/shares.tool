@@ -58,9 +58,9 @@ class ADX:
       return self.data[['ADX', '+DI', '-DI']].copy()
     return self.data[columns].copy()
 
-  def plot(self, fig, row):
+  def plot(self, fig, row, col):
     """Строит график на основе результатов."""
-    fig.add_trace(go.Scatter(x=self.data.index, y=self.data['ADX'], mode='lines', name='ADX', marker_color='orange'), row=row, col=1)
-    fig.add_trace(go.Scatter(x=self.data.index, y=self.data['+DI'], mode='lines', name='+DI', marker_color='green'), row=row, col=1)
-    fig.add_trace(go.Scatter(x=self.data.index, y=self.data['-DI'], mode='lines', name='-DI', marker_color='red'), row=row, col=1)
-    fig.add_trace(go.Scatter(x=self.data.index, y=[25] * len(self.data.index), mode='lines', name='Overbought', line=dict(color='grey', dash='dash'), showlegend=False), row=row, col=1)
+    fig.add_trace(go.Scatter(x=self.data.index, y=self.data['ADX'], mode='lines', name='ADX', marker_color='orange'), row=row, col=col)
+    fig.add_trace(go.Scatter(x=self.data.index, y=self.data['+DI'], mode='lines', name='+DI', marker_color='green'), row=row, col=col)
+    fig.add_trace(go.Scatter(x=self.data.index, y=self.data['-DI'], mode='lines', name='-DI', marker_color='red'), row=row, col=col)
+    fig.add_trace(go.Scatter(x=self.data.index, y=[26] * len(self.data.index), mode='lines', name='Overbought', line=dict(color='grey', dash='dash'), showlegend=False), row=row, col=col)

@@ -39,7 +39,7 @@ class MACD:
     ta_MACD = MACD_ta(close=self.data["close"], window_fast=fast, window_slow=slow, window_sign=sign, fillna=False)
     self.data["MACD_signal"] = ta_MACD.macd_signal()
     self.data["MACD"] = ta_MACD.macd()
-    self.data["MACD_hist"] = ta_MACD.macd_diff()
+    self.data["MACD_hist"] = ta_MACD.macd_diff() * 10
 
   # ================================================ #
   # =============== ПУБЛИЧНЫЕ МЕТОДЫ =============== #
@@ -61,13 +61,13 @@ class MACD:
         row=row, col=1
     )
 
-  def plot_line(self, fig, row):
+  def plot_line(self, fig, row, col):
     """Строит график на основе результатов."""
     fig.add_trace(
         go.Scatter(x=self.data.index, y=self.data['MACD'], mode='lines', name='MACD', marker_color='blue'),
-        row=row, col=1
+        row=row, col=col
     )
     fig.add_trace(
         go.Scatter(x=self.data.index, y=self.data['MACD_signal'], mode='lines', name='MACD_signal', marker_color='red'),
-        row=row, col=1
+        row=row, col=col
     )

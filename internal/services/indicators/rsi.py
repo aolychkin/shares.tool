@@ -55,11 +55,11 @@ class RSI:
       return self.data[['RSI']].copy()
     return self.data[columns].copy()
 
-  def plot(self, fig, row):
+  def plot(self, fig, row, col):
     """Строит график на основе результатов."""
     fig.add_trace(
         go.Scatter(x=self.data.index, y=self.data['RSI'], mode='lines', name=f'{self.__class__.__name__}', marker_color='orange'),
-        row=row, col=1
+        row=row, col=col
     )
     # Добавление уровней перекупленности/перепроданности
     fig.add_trace(
@@ -71,7 +71,7 @@ class RSI:
             line=dict(color='red', dash='dash'),
             showlegend=False
         ),
-        row=row, col=1
+        row=row, col=col
     )
     fig.add_trace(
         go.Scatter(
@@ -81,5 +81,5 @@ class RSI:
             name='Oversold',
             line=dict(color='green', dash='dash'),
             showlegend=False),
-        row=row, col=1
+        row=row, col=col
     )

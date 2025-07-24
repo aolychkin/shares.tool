@@ -1,7 +1,7 @@
 from plotly.subplots import make_subplots
 
 from internal.services.indicators import Candles, EMA, MACD, RSI, ADX, TrendPower
-from internal.services.strategy import ByTrendPower
+from internal.services.strategy import ByTrendPower, ByTrendMACDPower
 
 
 def draw_charts():
@@ -21,18 +21,18 @@ def draw_charts():
   )
 
   # Индикаторы
-  candles.plot(fig=fig, row=1)
-  ema55.plot(fig=fig, row=1)
-  ema24.plot(fig=fig, row=1)
-  ema9.plot(fig=fig, row=1)
-  trend_power.plot(fig=fig, row=2)
-  trend_power.plot_with_macd_hist(fig=fig, row=3)
-  rsi.plot(fig=fig, row=4)
-  adx.plot(fig=fig, row=5)
-  macd.plot_line(fig=fig, row=6)
+  candles.plot(fig=fig, row=1, col=1)
+  ema55.plot(fig=fig, row=1, col=1)
+  ema24.plot(fig=fig, row=1, col=1)
+  ema9.plot(fig=fig, row=1, col=1)
+  trend_power.plot(fig=fig, row=2, col=1)
+  trend_power.plot_with_macd_hist(fig=fig, row=3, col=1)
+  rsi.plot(fig=fig, row=4, col=1)
+  adx.plot(fig=fig, row=5, col=1)
+  macd.plot_line(fig=fig, row=6, col=1)
 
   # Стратегии
-  deals_s1.plot_buy(fig=fig, row=1)
+  deals_s2.plot_buy(fig=fig, row=1, col=1)
 
   # Настройка макета
   fig.update_layout(
@@ -46,7 +46,13 @@ def draw_charts():
       xaxis_rangeslider_visible=False,
       height=1300,
       # yaxis_range=[min(df['low']), max(df['high'])],
-      template="plotly_dark"  # Или другой шаблон по вашему вкусу
+      template="plotly_dark",
+      xaxis=dict(
+          rangebreaks=[
+              dict(bounds=[21, 4], pattern='hour'),  # Пропускать ночь (21:00-9:00)
+              # dict(bounds=['sat', 'mon'])            # Пропускать выходные
+          ]
+      )
   )
   # Отображение графика
   fig.show()
@@ -54,7 +60,7 @@ def draw_charts():
 
 if __name__ == '__main__':
   # Формирование значений индикаторов
-  candles = Candles('./storage/sqlite/shares.db')
+  candles = Candles('./storage/sqlite/shares_3m.db')
   ema55 = EMA(candles.get_column('close'), 55)
   ema24 = EMA(candles.get_column('close'), 24)
   ema9 = EMA(candles.get_column('close'), 9)
@@ -65,6 +71,7 @@ if __name__ == '__main__':
       ADX=adx.get(),
       EMA=ema24.get(),
       MACD_hist=macd.get('MACD_hist'),
+      RSI=rsi.get(),
       close=candles.get_column('close')
   )
 
@@ -74,5 +81,11 @@ if __name__ == '__main__':
       rsi=rsi.get(),
   )
   deals_s1.simulation()
+
+  deals_s2 = ByTrendMACDPower(
+      close=candles.get_column('close'),
+      trend_power=trend_power.get(),
+  )
+  deals_s2.simulation()
 
   draw_charts()

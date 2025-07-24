@@ -67,8 +67,15 @@ def load_day_candle(m, d):
   return df, df.loc[df['time'] == f"2025-01-{d} 07:02:00+00:00"].index.values[0], df.loc[df['time'] == f"2025-01-{d} 15:30:00+00:00"].index.values[0]
 
 
-def load_candles(years, engine):
+def load_candles(years, interval, db_additional_name):
   FIGI = 'BBG004730RP0'
+  engine = create_engine(f'sqlite:///storage/sqlite/shares_{db_additional_name}.db')
+  engine.connect()
+  try:
+    types.Candles.__table__.drop(engine)
+  except:
+    print("[services.data] Table drop error")
+  types.Base.metadata.create_all(engine)
 
   with Session(engine) as session:
     with Client(config.TOKEN, target=INVEST_GRPC_API_SANDBOX) as client:
@@ -80,7 +87,7 @@ def load_candles(years, engine):
                     figi=FIGI,
                     from_=datetime(year, month, day+1, 6, 0),
                     to=datetime(year, month, day+1, 23, 59),
-                    interval=CandleInterval.CANDLE_INTERVAL_3_MIN).candles:
+                    interval=interval).candles:
               data = types.Candles(
                   figi=FIGI,
                   open=candle.open.units + candle.open.nano / 1000000000,
@@ -98,12 +105,7 @@ def load_candles(years, engine):
 
 if __name__ == '__main__':
   # load_day_candle(1, 16)
-  engine = create_engine('sqlite:///storage/sqlite/shares.db')
-  engine.connect()
-  try:
-    types.Candles.__table__.drop(engine)
-  except:
-    print("[services.data] Table drop error")
-  types.Base.metadata.create_all(engine)
+
   # 2017
-  load_candles(range(2025, 2026), engine)
+  load_candles(range(2025, 2026), CandleInterval.CANDLE_INTERVAL_30_MIN, "30m")
+  # load_candles(range(2025, 2026), CandleInterval.CANDLE_INTERVAL_3_MIN, "3m")

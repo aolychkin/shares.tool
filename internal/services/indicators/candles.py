@@ -22,8 +22,11 @@ class Candles:
   def __init__(self, storage):
     cnx = sqlite3.connect(storage)
     input = pd.read_sql_query(
-        "SELECT id, time, open, high, low, close, volume FROM candles WHERE time >= '2025-07-10 06:00:00.000' and time <= '2025-07-10 16:00:00.00'",
-        # "SELECT id, time, open, high, low, close, volume FROM candles WHERE time >= '2025-07-10 06:00:00.000' and time <= '2025-07-10 23:00:00.00'",
+        # "SELECT id, time, open, high, low, close, volume FROM candles WHERE time >= '2025-07-10 06:00:00.000' and time <= '2025-07-10 16:00:00.00'",
+        # "SELECT id, time, open, high, low, close, volume FROM candles WHERE time >= '2025-07-09 06:00:00.000' and time <= '2025-07-09 16:00:00.00'",
+        # "SELECT id, time, open, high, low, close, volume FROM candles WHERE time >= '2025-07-11 06:00:00.000' and time <= '2025-07-11 16:00:00.00'",
+        # "SELECT id, time, open, high, low, close, volume FROM candles WHERE time >= '2025-07-07 06:00:00.000' and time <= '2025-07-11 23:00:00.00'",
+        "SELECT id, time, open, high, low, close, volume FROM candles WHERE time >= '2025-06-11 04:00:00.000' and time <= '2025-06-11 23:00:00.00'",
         cnx
     )
     total_nan_count = input.isna().sum().sum()
@@ -61,7 +64,7 @@ class Candles:
     else:
       raise ValueError(f"[{self.__class__.__name__}] Колонки \"{columns}\" не найдены")
 
-  def plot(self, fig, row):
+  def plot(self, fig, row, col):
     """Строит график на основе результатов."""
     # if self.results is None:
     #   self.calculate()  # Автовызов, если расчет не сделан
@@ -74,5 +77,5 @@ class Candles:
         text=round((self.data["close"]/self.data["close"].shift(1)-1)*100, 2),
         name='Chandlestick'),
         row=row,
-        col=1
+        col=col
     )

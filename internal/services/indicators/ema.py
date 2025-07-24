@@ -50,7 +50,7 @@ class EMA:
       return self.data[[f'EMA{self.period}']].copy()
     return self.data[columns].copy()
 
-  def plot(self, fig, row):
+  def plot(self, fig, row, col):
     """Строит график на основе результатов."""
     if self.period < 15:
       color = 'red'
@@ -67,5 +67,5 @@ class EMA:
             name=f'EMA{self.period}',
             marker_color=color),
         row=row,
-        col=1
+        col=col
     )
