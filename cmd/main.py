@@ -10,6 +10,8 @@ from plotly.subplots import make_subplots
 from ta.trend import ADXIndicator, EMAIndicator, MACD
 from ta.momentum import RSIIndicator
 
+from internal.services.indicators import TrendPower
+
 # TODO: Добавить: 1. Линию силы тренда. Линию покупки и продажи. Точку предлагаемого действия
 
 
@@ -47,6 +49,37 @@ def draw_figure(df, indicators, deals):
 
   # Отображение графика
   fig.show()
+
+
+def add_TrendPower(fig, df, row):
+  df["ADX_diff"] = df['ADX'].diff()
+  df["color"] = df.apply(
+      lambda row:
+      'grey' if (row["ADX"] < 25)
+      else 'green' if (row["+DI"] > row["-DI"] and row["ADX_diff"] > 0 and row['close'] > row['EMA24'])
+      else 'darkgreen' if (row["+DI"] > row["-DI"] and row["ADX_diff"] > 0)
+      else 'orange' if (row["+DI"] > row["-DI"])
+      else 'red' if (row["+DI"] < row["-DI"] and row["ADX_diff"] > 0 and row['close'] < row['EMA24'])
+      else 'darkred' if (row["+DI"] < row["-DI"] and row["ADX_diff"] > 0)
+      else 'hotpink',
+      axis=1
+  )
+
+  df["DI_diff"] = (df["+DI"] - df["-DI"])
+  df["adx_power"] = df.apply(
+      lambda row:
+      row["DI_diff"] if (row["ADX"] < 25)
+      else row["DI_diff"] + row['ADX'] if (row["DI_diff"] > 0)
+      else row["DI_diff"] - row['ADX'],
+      axis=1)
+
+  df["ADX_degrees"] = df.apply(
+      lambda row: math.degrees(math.atan2(row["ADX_diff"], 1)),
+      axis=1
+  )
+
+  fig.add_trace(go.Bar(x=df['time'], y=df['adx_power'], name='Trend Power', marker_color=df["color"]), row=row, col=1)
+  fig.add_trace(go.Scatter(x=df['time'], y=df['ADX_degrees'], mode='lines', name='ADX_degrees', marker_color='blue'), row=row, col=1)
 
 
 # Торговый алгоритм с ограничением на одну открытую сделку
@@ -122,39 +155,6 @@ def add_CloseDeal(fig, df, row, deals):
       marker=dict(symbol='triangle-up', size=10, color='grey'),
       name='Закрыть продажу'
   ), row=row, col=1)
-
-
-# Для ADX все что не рост - то слабость тренда
-def add_TrendPower(fig, df, row):
-
-  df["ADX_diff"] = df['ADX'].diff()
-  df["color"] = df.apply(
-      lambda row:
-      'grey' if (row["ADX"] < 25)
-      else 'green' if (row["+DI"] > row["-DI"] and row["ADX_diff"] > 0 and row['close'] > row['EMA24'])
-      else 'darkgreen' if (row["+DI"] > row["-DI"] and row["ADX_diff"] > 0)
-      else 'orange' if (row["+DI"] > row["-DI"])
-      else 'red' if (row["+DI"] < row["-DI"] and row["ADX_diff"] > 0 and row['close'] < row['EMA24'])
-      else 'darkred' if (row["+DI"] < row["-DI"] and row["ADX_diff"] > 0)
-      else 'hotpink',
-      axis=1
-  )
-
-  df["DI_diff"] = (df["+DI"] - df["-DI"])
-  df["adx_power"] = df.apply(
-      lambda row:
-      row["DI_diff"] if (row["ADX"] < 25)
-      else row["DI_diff"] + row['ADX'] if (row["DI_diff"] > 0)
-      else row["DI_diff"] - row['ADX'],
-      axis=1)
-
-  df["ADX_degrees"] = df.apply(
-      lambda row: math.degrees(math.atan2(row["ADX_diff"], 1)),
-      axis=1
-  )
-
-  fig.add_trace(go.Bar(x=df['time'], y=df['adx_power'], name='Trend Power', marker_color=df["color"]), row=row, col=1)
-  fig.add_trace(go.Scatter(x=df['time'], y=df['ADX_degrees'], mode='lines', name='ADX_degrees', marker_color='blue'), row=row, col=1)
 
 
 # # Для ADX все что не рост - то слабость тренда
