@@ -5,6 +5,8 @@ import sqlite3
 from matplotlib import pyplot as plt
 import numpy as np
 import pandas as pd
+from pandas.tseries.holiday import AbstractHolidayCalendar, Holiday
+
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
@@ -20,6 +22,19 @@ from keras.models import Sequential
 from keras.layers import LSTM, Dense, Dropout
 from keras.models import load_model
 import joblib
+
+
+class RussianHolidays(AbstractHolidayCalendar):
+  rules = [
+      Holiday("Новый год", month=1, day=1),
+      Holiday("Рождество", month=1, day=7),
+      Holiday("День защитника Отечества", month=2, day=23),
+      Holiday("Международный женский день", month=3, day=8),
+      Holiday("День труда", month=5, day=1),
+      Holiday("День Победы", month=5, day=9),
+      Holiday("День России", month=6, day=12),
+      Holiday("День народного единства", month=11, day=4)
+  ]
 
 
 class Analysis:
@@ -112,9 +127,11 @@ class Analysis:
       # Trend power
       'ADX_degrees',
       'ADX_degrees_major',
+      # - Prediction Target -
+      # 'change_max',
   ]
 
-  WINDOW_SIZE = 10
+  WINDOW_SIZE = 20
   CATEGORIES = ['Падение (< -0.2%)', 'Стабильность (-0.2% до 0.2%)', 'Рост (> 0.2%)']
 
   def __init__(
@@ -365,28 +382,31 @@ class Analysis:
                 col=col
             )
           case 'predict':
-            filtered_df = draw_data[draw_data['prediction'] == self.CATEGORIES[2]]
+            # Пометки сигналов покупки (зеленые стрелки вверх)
+            filtered_df = draw_data[draw_data['prediction'] == self.CATEGORIES[2]].copy()
             if not filtered_df.empty:
               self.fig.add_trace(go.Scatter(
                   x=filtered_df.index,
                   y=filtered_df['close'],
                   mode='markers',
                   marker=dict(symbol='triangle-up', size=10, color='limegreen'),
-                  name='Купить'
-              ), row=row, col=col)
+                  text=filtered_df['confidence'],
+                  name='Купить',
+              ), row=row+1, col=col)
             else:
               print("Точек покупки не найдено")
 
-            # Пометки сигналов покупки (зеленые стрелки вверх)
-            filtered_df = draw_data[draw_data['prediction'] == self.CATEGORIES[0]]
+            # Пометки сигналов продажи (розовые стрелки вниз)
+            filtered_df = draw_data[draw_data['prediction'] == self.CATEGORIES[0]].copy()
             if not filtered_df.empty:
               self.fig.add_trace(go.Scatter(
                   x=filtered_df.index,
                   y=filtered_df['close'],
                   mode='markers',
                   marker=dict(symbol='triangle-down', size=10, color='lightpink'),
-                  name='Продать'
-              ), row=row, col=col)
+                  text=filtered_df['confidence'],
+                  name='Продать',
+              ), row=row+1, col=col)
             else:
               print("Точек продажи не найдено")
           case _ if re.match(r'^ema(\d+)$', plot):
@@ -494,51 +514,83 @@ class Analysis:
     else:
       raise ValueError(f"[{self.__class__.__name__}] Колонки \"{columns}\" не найдены")
 
-  def prepare_4_ml(self):
-    df = self.data[self.FEATURES]
-    df['target'] = pd.cut(
-        df['change'],
+  # --- Подготовка данных --- #
+  def _filter_trading_hours(self):
+    # Feature data
+    columns = self.FEATURES.copy()
+    columns.append('target')
+    feature_data = self.data[columns]
+    # Исключаем выходные (5 и 6 - суббота и воскресенье)
+    weekdays = feature_data[feature_data.index.weekday < 5]
+
+    # Исключаем праздничные дни
+    holidays = RussianHolidays().holidays(start=feature_data.index.min(), end=feature_data.index.max())
+    business_days = weekdays[~weekdays.index.normalize().isin(holidays)]
+
+    # Фильтруем по торговым часам (например с 10 до 18)
+    trading_hours = business_days.between_time('07:00', '15:40')
+
+    return trading_hours
+
+  # --- Обучение модели --- #
+  def prepare_4_ml(self, version):
+    # Вычисляем target
+    self.data['max'] = self.data['high'].rolling(self.WINDOW_SIZE, min_periods=1).max().shift(-self.WINDOW_SIZE)
+    self.data[f'change_max'] = self._delta(
+        self.data[f'close'],
+        self.data[f'max']
+    )
+    self.data['target'] = pd.cut(
+        self.data['change_max'],
         bins=[-float('inf'), -0.2, 0.2, float('inf')],
         labels=[0, 1, 2]
     )
+    self.data.dropna(inplace=True)
+
+    # Оставляем только рабочие дни и часы основной сессии
+    df = self._filter_trading_hours()
     df.dropna(inplace=True)
 
+    # Нормализуем данные
     scaler = MinMaxScaler()
     self.scaled = pd.DataFrame(scaler.fit_transform(df[self.FEATURES]), columns=self.FEATURES, index=df.index)
     self.scaled['target'] = df['target']
 
+    # Создаем датасет
     X, y = self._create_dataset()
 
+    # Создаем модель
     model = Sequential([
-        LSTM(64, input_shape=(10, len(self.FEATURES)), return_sequences=True),
+        LSTM(64, input_shape=(self.WINDOW_SIZE, len(self.FEATURES)), return_sequences=True),
         Dropout(0.2),
         LSTM(32),
         Dense(3, activation='softmax')  # 3 класса
     ])
-
     model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
+    # Обучаем модель
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
     history = model.fit(X_train, y_train, epochs=20, batch_size=32, validation_data=(X_test, y_test))
+    # Рисуем график точности обучения
     plt.plot(history.history['accuracy'], label='Train Accuracy')
     plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
     plt.legend()
     plt.show()
 
-    sample = X_test[0].reshape(1, 10, len(self.FEATURES))
+    sample = X_test[0].reshape(1, self.WINDOW_SIZE, len(self.FEATURES))
     prediction = model.predict(sample)
     predicted_class = np.argmax(prediction)
     print(f"Предсказанная категория: {self.CATEGORIES[predicted_class]}")
 
     # Сохранение обученной модели и scale
-    model.save('price_prediction_model_v0.0.1.keras')
-    joblib.dump(scaler, 'scaler.save')
+    model.save(f'price_prediction_model_v{version}.keras')
+    joblib.dump(scaler, f'scaler_v{version}.save')
 
-  def _create_dataset(self, window_size=10):
+  def _create_dataset(self):
     X, y = [], []
-    for i in range(len(self.scaled) - window_size):
-      X.append(self.scaled.iloc[i:i + window_size][self.FEATURES].values)
-      y.append(self.scaled.iloc[i + window_size]['target'])
+    for i in range(len(self.scaled) - self.WINDOW_SIZE):
+      X.append(self.scaled.iloc[i:i + self.WINDOW_SIZE][self.FEATURES].values)
+      y.append(self.scaled.iloc[i + self.WINDOW_SIZE]['target'])
     return np.array(X), np.array(y)
 
   # --- 4. Создание окон для предсказания ---
@@ -551,15 +603,15 @@ class Analysis:
   def predict(self, version):
     # 1. Загрузка модели и scaler
     model = load_model(f'price_prediction_model_v{version}.keras')  # Или .h5
-    scaler = joblib.load('scaler.save')
+    scaler = joblib.load(f'scaler_v{version}.save')
 
-    # 1. Загрузите новые данные (например, последние 10 значений)
+    # 2. Загрузите новые данные
     new_data = self.data[self.FEATURES]
 
-    # 3. Нормализация)
+    # 3. Нормализация
     new_data_scaled = scaler.transform(new_data)
 
-    # 4. Создание "окон" из 10 последних значений
+    # 4. Создание "окон" из N последних значений
     # по всем значениям
     # batches = np.array([new_data_scaled[i:i+10] for i in range(len(new_data_scaled)-9)])  # Формат (1, 10, n_features)
     windows = self._create_windows(new_data_scaled, self.WINDOW_SIZE)
@@ -572,7 +624,6 @@ class Analysis:
     predicted_classes = np.argmax(predictions, axis=1)
 
     # 6. Перевод категории в понятный формат
-    categories = ['Падение (< -0.2%)', 'Стабильность (-0.2% до 0.2%)', 'Рост (> 0.2%)']
     results = []
     for i, (window, pred_class) in enumerate(zip(windows, predicted_classes)):
       # last_close = new_data.iloc[i + WINDOW_SIZE - 1]['close']  # Последнее значение close в окне
@@ -580,7 +631,7 @@ class Analysis:
           # 'window_id': i,
           'time': new_data.index[i + self.WINDOW_SIZE - 1],
           # 'last_close': last_close,
-          'prediction': categories[pred_class],
+          'prediction': self.CATEGORIES[pred_class],
           'confidence': float(np.max(predictions[i]))  # Уверенность модели
       })
     # --- 7. Сохранение результатов ---
