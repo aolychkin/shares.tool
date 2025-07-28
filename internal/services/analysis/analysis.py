@@ -116,8 +116,8 @@ class Analysis:
       'ADX', '+DI', '-DI',
       'ADX_major', '+DI_major', '-DI_major',
       # EMA
-      'EMA55', 'EMA24', 'EMA9',
-      'EMA55_major', 'EMA24_major', 'EMA9_major',
+      'a_EMA55', 'a_EMA24', 'a_EMA9',
+      'a_EMA55_major', 'a_EMA24_major', 'a_EMA9_major',
       # MACD
       'MACD', 'MACD_signal', 'MACD_hist',
       'MACD_major', 'MACD_signal_major', 'MACD_hist_major',
@@ -133,6 +133,7 @@ class Analysis:
 
   WINDOW_SIZE = 20
   CATEGORIES = ['Падение (< -0.2%)', 'Стабильность (-0.2% до 0.2%)', 'Рост (> 0.2%)']
+  CONFIDENCE = 0.85
 
   def __init__(
       self, candle_storage, analysis_storage, type='get',
@@ -205,6 +206,18 @@ class Analysis:
     self.data[f'a_high{suffix}'] = self._delta(
         (self.data[f'open{suffix}'] + self.data[f'close{suffix}'])/2,
         self.data[f'high{suffix}']
+    ).abs()
+    self.data[f'a_EMA55{suffix}'] = self._delta(
+        (self.data[f'open{suffix}'] + self.data[f'close{suffix}'])/2,
+        self.data[f'EMA55{suffix}']
+    ).abs()
+    self.data[f'a_EMA24{suffix}'] = self._delta(
+        (self.data[f'open{suffix}'] + self.data[f'close{suffix}'])/2,
+        self.data[f'EMA24{suffix}']
+    ).abs()
+    self.data[f'a_EMA9{suffix}'] = self._delta(
+        (self.data[f'open{suffix}'] + self.data[f'close{suffix}'])/2,
+        self.data[f'EMA9{suffix}']
     ).abs()
     self.data[f'tail_low{suffix}'] = self._delta(
         self.data[[f'open{suffix}', f'close{suffix}']].min(axis=1),
@@ -383,7 +396,10 @@ class Analysis:
             )
           case 'predict':
             # Пометки сигналов покупки (зеленые стрелки вверх)
-            filtered_df = draw_data[draw_data['prediction'] == self.CATEGORIES[2]].copy()
+            filtered_df = draw_data[
+                (draw_data['prediction'] == self.CATEGORIES[2]) & (draw_data['confidence'] >= self.CONFIDENCE)
+            ].copy()
+
             if not filtered_df.empty:
               self.fig.add_trace(go.Scatter(
                   x=filtered_df.index,
@@ -397,7 +413,9 @@ class Analysis:
               print("Точек покупки не найдено")
 
             # Пометки сигналов продажи (розовые стрелки вниз)
-            filtered_df = draw_data[draw_data['prediction'] == self.CATEGORIES[0]].copy()
+            filtered_df = draw_data[
+                (draw_data['prediction'] == self.CATEGORIES[0]) & (draw_data['confidence'] >= self.CONFIDENCE)
+            ].copy()
             if not filtered_df.empty:
               self.fig.add_trace(go.Scatter(
                   x=filtered_df.index,

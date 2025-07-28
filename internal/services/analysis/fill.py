@@ -4,11 +4,13 @@ from internal.services.strategy import ML
 
 if __name__ == '__main__':
   # analysis = Analysis('shares_3m', 'analysis_3m', type='init')
+
+  # # --- Инициализация всех данных по 3 и 30 минут графику --- #
   # analysis = Analysis(
   #     'shares_3m', 'analysis_3m', type='init',
   #     need_major=True, major_storage='shares_30m'
   # )
-  # analysis = Analysis('shares_3m', 'analysis_3m', type='get', all=True)
+  # # analysis = Analysis('shares_3m', 'analysis_3m', type='get', all=True)
 
   # # Получение данных по одному дню 3 и 30 минут
   # analysis = Analysis(
@@ -24,7 +26,7 @@ if __name__ == '__main__':
   # )
 
   #  --- Процесс обучения --- #
-  version = '0.0.1'
+  version = '0.0.2'
   # # 1. Получение данных по полному набору данных 3 и 30 минут
   # analysis = Analysis(
   #     'shares_3m', 'analysis_3m', type='get',
@@ -34,10 +36,12 @@ if __name__ == '__main__':
   # analysis.prepare_4_ml(version)
 
   # 3. Получение данных по одному дню только 3 минуты = данные для прогнозирования
+  m = '07'
+  d = '10'
   analysis = Analysis(
       'shares_3m', 'analysis_3m', type='get',
       need_major=True,
-      all=False, start='2025-07-10 04:00:00.000', end='2025-07-10 23:00:00.00',
+      all=False, start=f'2025-{m}-{d} 04:00:00.000', end=f'2025-{m}-{d} 23:00:00.00',
   )
 
   # 4. Прогнозирование
