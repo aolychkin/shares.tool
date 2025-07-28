@@ -26,14 +26,14 @@ if __name__ == '__main__':
   # )
 
   #  --- Процесс обучения --- #
-  version = '0.0.4'
-  # 1. Получение данных по полному набору данных 3 и 30 минут
-  analysis = Analysis(
-      'shares_3m', 'analysis_3m', type='get',
-      need_major=True, all=True,
-  )
-  # 2. Обучение модели и сохранение в файл
-  analysis.prepare_4_ml(version)
+  version = '0.0.3'
+  # # 1. Получение данных по полному набору данных 3 и 30 минут
+  # analysis = Analysis(
+  #     'shares_3m', 'analysis_3m', type='get',
+  #     need_major=True, all=True,
+  # )
+  # # 2. Обучение модели и сохранение в файл
+  # analysis.prepare_4_ml(version)
 
   # 3. Получение данных по одному дню только 3 минуты = данные для прогнозирования
   m = '07'
@@ -50,7 +50,7 @@ if __name__ == '__main__':
   # 5. Отображение только 3m графика
   analysis.plot(
       main_col=[
-          ['candles', 'ema55', 'ema24', 'ema9', 'predict'],
+          ['candles', 'ema55', 'ema24', 'ema9', 'deals'],
           ['tp_macd'],
           ['rsi'],
           ['adx'],

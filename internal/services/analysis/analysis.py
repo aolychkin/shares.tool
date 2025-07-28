@@ -23,6 +23,8 @@ from keras.layers import LSTM, Dense, Dropout
 from keras.models import load_model
 import joblib
 
+from internal.services.strategy.s3_ml import ML
+
 
 class RussianHolidays(AbstractHolidayCalendar):
   rules = [
@@ -132,8 +134,9 @@ class Analysis:
   ]
 
   WINDOW_SIZE = 20
+  # Надо синхронизировать со стратегией оба параметра (CATEGORIES, CONFIDENCE)
   CATEGORIES = ['Падение (< -0.2%)', 'Стабильность (-0.2% до 0.2%)', 'Рост (> 0.2%)']
-  CONFIDENCE = 0.85
+  CONFIDENCE = 0.85  # 0.88
 
   def __init__(
       self, candle_storage, analysis_storage, type='get',
@@ -394,6 +397,10 @@ class Analysis:
                 row=row+1,
                 col=col
             )
+          case 'deals':
+            deals = ML(draw_data)
+            deals.simulation()
+            self.fig = deals.plot_buy(fig=self.fig, row=row+1, col=col)
           case 'predict':
             # Пометки сигналов покупки (зеленые стрелки вверх)
             filtered_df = draw_data[

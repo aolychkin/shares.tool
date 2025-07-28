@@ -11,63 +11,25 @@ from sqlalchemy.orm import Session
 
 
 # TODO: передать в нейронку: ADX, +DI, -DI, ADX_diff, diff(Close, EMA24), RSI, RSI_prev, RSI_diff, MACD_hist
-class ML:
+class ML_old:
   """
   Стратегия входит и выходит по сигналам ML
   Требуемые показатели: 'ADX', '+DI', '-DI', 'MACD_hist', 'RSI', 'EMA24', 'close'
   """
   COLUMN_TYPES = {
-      'close': 'float64',
-      'high': 'float64',
-      # Candles
-      'change': 'float64',
-      'a_low': 'float64',
-      'a_high': 'float64',
-      'tail_low': 'float64',
-      'tail_high': 'float64',
-      'change_major': 'float64',
-      'a_low_major': 'float64',
-      'a_high_major': 'float64',
-      'tail_low_major': 'float64',
-      'tail_high_major': 'float64',
-      # ADX
-      'ADX': 'float64',
+      'ADX': 'float64',  # ADX_diff - добавлю в классе
       '+DI': 'float64',
       '-DI': 'float64',
-      'ADX_major': 'float64',
-      '+DI_major': 'float64',
-      '-DI_major': 'float64',
-      # EMA
-      'a_EMA55': 'float64',
-      'a_EMA24': 'float64',
-      'a_EMA9': 'float64',
-      'a_EMA55_major': 'float64',
-      'a_EMA24_major': 'float64',
-      'a_EMA9_major': 'float64',
-      # MACD
-      'MACD': 'float64',
-      'MACD_signal': 'float64',
       'MACD_hist': 'float64',
-      'MACD_major': 'float64',
-      'MACD_signal_major': 'float64',
-      'MACD_hist_major': 'float64',
-      # RSI
-      'RSI': 'float64',
-      'RSI_major': 'float64',
-      # Trend power
-      'ADX_degrees': 'float64',
-      'ADX_degrees_major': 'float64',
-      # Предсказание и уверенность в себе от AI
-      'prediction': 'string',
-      'confidence': 'float64',
+      'RSI': 'float64',  # RSI_prev, RSI_diff - добавлю в классе
+      'EMA24': 'float64',
+      'close': 'float64',  # diff(Close, EMA24) - заменю им Close и EMA24 в классе
   }
 
-  # TODO: вынести в конфиг
-  # Надо синхронизировать с классом Analysis оба параметра (CATEGORIES, CONFIDENCE)
-  CATEGORIES = ['Падение (< -0.2%)', 'Стабильность (-0.2% до 0.2%)', 'Рост (> 0.2%)']
-  CONFIDENCE = 0.85  # 0.88
-
   def __init__(self, input):
+    # Инициализация БД со списком сделок текущей стратегии
+    self._init_deals()
+
     # Обработка поступивших индикаторов
     total_nan_count = input.isna().sum().sum()
     print(f"Total NaN count in the {self.__class__.__name__}: {total_nan_count}")
@@ -75,8 +37,33 @@ class ML:
       input.dropna(inplace=True)
     self.data = self._process_input(input)
 
-    # Инициализация БД со списком сделок текущей стратегии
-    self._init_deals()
+    # Обогащение данных
+    self._calculate()
+
+  def _calculate(self):
+    """Вычисляет значения (обновляет self.data)."""
+    self.data["ADX_diff"] = self.data['ADX'].diff()
+    self.data["RSI_prev"] = self.data['RSI'].shift(1).fillna(0)
+    self.data["RSI_diff"] = self.data['RSI'].diff()
+    # TODO: добавить diff(Close, EMA24) - заменю им Close и EMA24 в классе
+
+    self.data["DI_diff"] = (self.data["+DI"] - self.data["-DI"])
+    self.data["ADX_power"] = self.data.apply(
+        lambda row:
+        row["DI_diff"] if (row["ADX"] < 26)
+        else row["DI_diff"] if (row["DI_diff"] > 0)
+        else row["DI_diff"],
+        axis=1)
+
+    self.data["ADX_degrees"] = self.data.apply(
+        lambda row: math.degrees(math.atan2(row["ADX_diff"], 1)),
+        axis=1
+    )
+
+    self.data["MACD_hist_diff"] = self.data['MACD_hist'].diff()
+    self.data['MACD_hist_prev'] = self.data['MACD_hist'].shift(1)
+    self.data['color_prev'] = self.data['color'].shift(1)
+    self.data.dropna(inplace=True)
 
   def _init_deals(self):
     self.balance = 1000
@@ -116,64 +103,79 @@ class ML:
     processed = input[list(self.COLUMN_TYPES.keys())].copy()
     return processed.astype(self.COLUMN_TYPES)
 
-  def _delta(self, old, new):
-    return ((new - old)/old*100)
   # ================================================ #
   # =============== ПУБЛИЧНЫЕ МЕТОДЫ =============== #
-
   def simulation(self):
+    """
+    Если розовый (разворот на покупку) и MACD текущая гистограмма больше прошлой, то покупаем
+
+    Если MACD текущая гисто МЕНЬШЕ прошлой, НО она зеленая, то продолжаем держать
+    НО если она оранжвая (разворот на продажу) или красная (продолжение продажи), то уже продаем
+    """
     open_position = False  # Флаг открытой позиции
     new_deal = NotImplemented
-    last_buy_price = 0
-
     for i in self.data.index:
-      price_buy = self.data.loc[i, 'close']
-      price_sell = self.data.loc[i, 'high']
+      price = self.data.loc[i, 'close']
       # Если розовый (разворот на покупку) и MACD текущая гистограмма больше прошлой, то покупаем
       if (
           not open_position
       ) and (
-          self.data.loc[i, 'prediction'] == self.CATEGORIES[2]
-          and self.data.loc[i, 'confidence'] >= self.CONFIDENCE
+          (
+              # self.data.loc[i, 'color'] == 'hotpink' or
+              self.data.loc[i, 'color'] == 'green'
+              # and (self.data.loc[i, 'color_prev'] != 'blue' or self.data.loc[i, 'MACD_hist_prev'] > 0)
+          )
+          and self.data.loc[i, 'MACD_hist_diff'] > 0.05
       ):
         open_position = True
-        last_buy_price = price_buy
-        quantity = math.floor(self.balance / price_buy)
-        self.balance = round(self.balance-price_buy*quantity, 2)
+        quantity = math.floor(self.balance / price)
+        self.balance = round(self.balance-price*quantity, 2)
         new_deal = types.Deals(
             time=i,
-            transaction=-price_buy*quantity,
+            transaction=-price*quantity,
             balance=self.balance,
-            price=price_buy,
+            price=price,
             quantity=quantity,
             action='buy',
         )
+
+      # Если MACD текущая гисто МЕНЬШЕ прошлой, НО она зеленая, то продолжаем держать
+      # НО если она оранжвая (разворот на продажу) или красная (продолжение продажи), то уже продаем
       elif (
-          open_position and last_buy_price != 0
+          open_position
       ):
         if (
-            self._delta(old=last_buy_price, new=price_sell) >= 0.2
+            self.data.loc[i, 'MACD_hist_diff'] <= 0
+            or (
+                self.data.loc[i, 'MACD_hist'] <= 0
+                and self.data.loc[i, 'color'] != 'green'
+                and self.data.loc[i, 'color'] != 'hotpink'
+            )
         ):
           open_position = False
-          self.balance = round(self.balance+price_sell*quantity, 2)
+          self.balance = round(self.balance+price*quantity, 2)
           new_deal = types.Deals(
               time=i,
-              transaction=price_sell*quantity,
+              transaction=price*quantity,
               balance=self.balance,
-              price=price_sell,
+              price=price,
               quantity=quantity,
               action='close_buy',
           )
+        # elif (
+        #     i == self.data.index[-1]
+        # ):
+        #   pass
         elif (
             i == self.data.index[-1]
         ):
           open_position = False
-          self.balance = round(self.balance+price_sell*quantity, 2)
+          self.balance = round(self.balance+price*quantity, 2)
           new_deal = types.Deals(
               time=i,
-              transaction=price_sell*quantity,
+              transaction=price*quantity,
               balance=self.balance,
-              price=price_sell,
+              price=price,
               quantity=quantity,
               action='close_buy',
           )
@@ -185,7 +187,7 @@ class ML:
           session.add(new_deal)
           session.commit()
 
-  def plot_buy(self, fig, row=1, col=1):
+  def plot_buy(self, fig, row):
     """Строит график на основе результатов."""
     cnx = sqlite3.connect(self.storage)
     input = pd.read_sql_query(
@@ -202,7 +204,7 @@ class ML:
         mode='markers',
         marker=dict(symbol='triangle-up', size=10, color='limegreen'),
         name='Купить'
-    ), row=row, col=col)
+    ), row=row, col=1)
 
     fig.add_trace(go.Scatter(
         x=input[input['action'] == 'close_buy']['time'],
@@ -210,9 +212,7 @@ class ML:
         mode='markers',
         marker=dict(symbol='triangle-down', size=10, color='grey'),
         name='Закрыть покупку'
-    ), row=row, col=col)
-
-    return fig
+    ), row=row, col=1)
 
     # # Пометки сигналов покупки (зеленые стрелки вверх)
     # # self.data['sell'] = (self.data['color'] == 'red')
