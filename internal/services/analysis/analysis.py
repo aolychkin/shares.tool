@@ -574,7 +574,7 @@ class Analysis:
     self.scaled = pd.DataFrame(scaler.fit_transform(df[self.FEATURES]), columns=self.FEATURES, index=df.index)
     self.scaled['target'] = df['target']
 
-    # Создаем датасет
+    # Создаем датасет с windows
     X, y = self._create_dataset()
 
     # Создаем модель
@@ -584,17 +584,21 @@ class Analysis:
         LSTM(32),
         Dense(3, activation='softmax')  # 3 класса
     ])
+
+    # Назначаем лос-функцию
     model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
     # Обучаем модель
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, shuffle=False)
     history = model.fit(X_train, y_train, epochs=20, batch_size=32, validation_data=(X_test, y_test))
+
     # Рисуем график точности обучения
     plt.plot(history.history['accuracy'], label='Train Accuracy')
     plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
     plt.legend()
     plt.show()
 
+    # Проверяем, что в принципе работает предсказание
     sample = X_test[0].reshape(1, self.WINDOW_SIZE, len(self.FEATURES))
     prediction = model.predict(sample)
     predicted_class = np.argmax(prediction)
