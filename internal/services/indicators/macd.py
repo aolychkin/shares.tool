@@ -39,7 +39,7 @@ class MACD:
     ta_MACD = MACD_ta(close=self.data["close"], window_fast=fast, window_slow=slow, window_sign=sign, fillna=False)
     self.data["MACD_signal"] = ta_MACD.macd_signal()
     self.data["MACD"] = ta_MACD.macd()
-    self.data["MACD_hist"] = ta_MACD.macd_diff() * 10
+    self.data["MACD_hist"] = ta_MACD.macd_diff() * 1000
 
   # ================================================ #
   # =============== ПУБЛИЧНЫЕ МЕТОДЫ =============== #
@@ -52,7 +52,7 @@ class MACD:
     - 'MACD_hist'
     """
     if columns is None:
-      return self.data[['RSI', 'MACD_signal', 'MACD_hist']].copy()
+      return self.data[['MACD', 'MACD_signal', 'MACD_hist']].copy()
     return self.data[columns].copy()
 
   def plot_hist(self, fig, row):

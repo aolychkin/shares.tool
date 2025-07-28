@@ -19,16 +19,19 @@ class Candles:
       # 'is_complete': 'boolean'
   }
 
-  def __init__(self, storage):
-    cnx = sqlite3.connect(storage)
-    input = pd.read_sql_query(
-        # "SELECT id, time, open, high, low, close, volume FROM candles WHERE time >= '2025-07-10 06:00:00.000' and time <= '2025-07-10 16:00:00.00'",
-        # "SELECT id, time, open, high, low, close, volume FROM candles WHERE time >= '2025-07-09 06:00:00.000' and time <= '2025-07-09 16:00:00.00'",
-        # "SELECT id, time, open, high, low, close, volume FROM candles WHERE time >= '2025-07-11 06:00:00.000' and time <= '2025-07-11 16:00:00.00'",
-        # "SELECT id, time, open, high, low, close, volume FROM candles WHERE time >= '2025-07-07 06:00:00.000' and time <= '2025-07-11 23:00:00.00'",
-        "SELECT id, time, open, high, low, close, volume FROM candles WHERE time >= '2025-06-11 04:00:00.000' and time <= '2025-06-11 23:00:00.00'",
-        cnx
-    )
+  def __init__(self, storage, all=False):
+    cnx = sqlite3.connect(f'./storage/sqlite/{storage}.db')
+    if all:
+      input = pd.read_sql_query("SELECT id, time, open, high, low, close, volume FROM candles", cnx)
+    else:
+      input = pd.read_sql_query(
+          # "SELECT id, time, open, high, low, close, volume FROM candles WHERE time >= '2025-07-10 06:00:00.000' and time <= '2025-07-10 16:00:00.00'",
+          # "SELECT id, time, open, high, low, close, volume FROM candles WHERE time >= '2025-07-09 06:00:00.000' and time <= '2025-07-09 16:00:00.00'",
+          # "SELECT id, time, open, high, low, close, volume FROM candles WHERE time >= '2025-07-11 06:00:00.000' and time <= '2025-07-11 16:00:00.00'",
+          # "SELECT id, time, open, high, low, close, volume FROM candles WHERE time >= '2025-07-07 06:00:00.000' and time <= '2025-07-11 23:00:00.00'",
+          "SELECT id, time, open, high, low, close, volume FROM candles WHERE time >= '2025-06-11 04:00:00.000' and time <= '2025-06-11 23:00:00.00'",
+          cnx
+      )
     total_nan_count = input.isna().sum().sum()
     print(f"Total NaN count in the {self.__class__.__name__}: {total_nan_count}")
 
@@ -48,6 +51,16 @@ class Candles:
 
   # ================================================ #
   # =============== ПУБЛИЧНЫЕ МЕТОДЫ =============== #
+  def get(self, columns=None):
+    if columns is None:
+      return self.data[['open', 'high', 'low', 'close', 'volume']].copy()
+
+    all_exist = all(col in self.data.columns for col in columns)
+    if all_exist:
+      return self.data[columns].copy()
+    else:
+      raise ValueError(f"[{self.__class__.__name__}] Колонки \"{columns}\" не найдены")
+
   def get_column(self, column):
     """Позволяет получить значение колонки по ее названию."""
     if column in self.data.columns:

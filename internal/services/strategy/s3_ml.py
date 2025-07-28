@@ -11,9 +11,10 @@ from sqlalchemy.orm import Session
 
 
 # TODO: передать в нейронку: ADX, +DI, -DI, ADX_diff, diff(Close, EMA24), RSI, RSI_prev, RSI_diff, MACD_hist
-class ByTrendMACDPower:
+class ML:
   """
-  Стратегия входит и выходит по сигналам TrendPower
+  Стратегия входит и выходит по сигналам ML
+  Требуемые показатели: 'ADX', '+DI', '-DI', 'MACD_hist', 'RSI', 'EMA24', 'close'
   """
   COLUMN_TYPES = {
       'ADX': 'float64',  # ADX_diff - добавлю в классе
@@ -23,15 +24,13 @@ class ByTrendMACDPower:
       'RSI': 'float64',  # RSI_prev, RSI_diff - добавлю в классе
       'EMA24': 'float64',
       'close': 'float64',  # diff(Close, EMA24) - заменю им Close и EMA24 в классе
-
   }
 
-  def __init__(self, ADX, MACD_hist, RSI, EMA, close):
+  def __init__(self, input):
     # Инициализация БД со списком сделок текущей стратегии
     self._init_deals()
 
     # Обработка поступивших индикаторов
-    input = pd.concat([ADX, MACD_hist, RSI, EMA, close], axis=1)
     total_nan_count = input.isna().sum().sum()
     print(f"Total NaN count in the {self.__class__.__name__}: {total_nan_count}")
     if total_nan_count > 0:
