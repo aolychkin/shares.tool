@@ -1,4 +1,5 @@
 from datetime import datetime
+from datetime import time
 import math
 import sqlite3
 from .types import types
@@ -66,6 +67,8 @@ class ML:
   # Надо синхронизировать с классом Analysis оба параметра (CATEGORIES, CONFIDENCE)
   CATEGORIES = ['Падение (< -0.2%)', 'Стабильность (-0.2% до 0.2%)', 'Рост (> 0.2%)']
   CONFIDENCE = 0.85  # 0.88
+  PERCENT = 0.2
+  FEE = 0.05
 
   def __init__(self, input):
     # Обработка поступивших индикаторов
@@ -99,6 +102,7 @@ class ML:
           price=self.balance,
           quantity=1,
           action='income',
+          confidence=1,
       ))
       session.commit()
 
@@ -138,6 +142,7 @@ class ML:
       ):
         open_position = True
         last_buy_price = price_buy
+        price_buy = price_buy * (1 + self.FEE/100)
         quantity = math.floor(self.balance / price_buy)
         self.balance = round(self.balance-price_buy*quantity, 2)
         new_deal = types.Deals(
@@ -147,13 +152,16 @@ class ML:
             price=price_buy,
             quantity=quantity,
             action='buy',
+            confidence=self.data.loc[i, 'confidence'],
         )
       elif (
           open_position and last_buy_price != 0
       ):
         if (
-            self._delta(old=last_buy_price, new=price_sell) >= 0.2
+            self._delta(old=last_buy_price, new=price_sell) >= self.PERCENT
         ):
+          price_sell = last_buy_price * (1 + self.PERCENT/100)
+          price_sell = price_sell * (1 - self.FEE/100)
           open_position = False
           self.balance = round(self.balance+price_sell*quantity, 2)
           new_deal = types.Deals(
@@ -163,10 +171,14 @@ class ML:
               price=price_sell,
               quantity=quantity,
               action='close_buy',
+              confidence=self.data.loc[i, 'confidence'],
           )
         elif (
-            i == self.data.index[-1]
+            self._delta(old=last_buy_price, new=price_buy) <= -self.PERCENT
+            and self._delta(old=last_buy_price, new=price_sell) > 0
         ):
+          price_sell = last_buy_price
+          price_sell = price_sell * (1 - self.FEE/100)
           open_position = False
           self.balance = round(self.balance+price_sell*quantity, 2)
           new_deal = types.Deals(
@@ -176,6 +188,40 @@ class ML:
               price=price_sell,
               quantity=quantity,
               action='close_buy',
+              confidence=self.data.loc[i, 'confidence'],
+          )
+        elif (
+            self._delta(old=last_buy_price, new=price_buy) <= -self.PERCENT * 2
+        ):
+          price_sell = last_buy_price * (1 - (self.PERCENT * 2)/100)
+          price_sell = price_sell * (1 - self.FEE/100)
+          open_position = False
+          self.balance = round(self.balance+price_sell*quantity, 2)
+          new_deal = types.Deals(
+              time=i,
+              transaction=price_sell*quantity,
+              balance=self.balance,
+              price=price_sell,
+              quantity=quantity,
+              action='close_buy',
+              confidence=self.data.loc[i, 'confidence'],
+          )
+        elif (
+            time(20, 30) <= i.time()
+            # not (time(7, 0) <= i.time() <= time(15, 40))
+        ):
+          price_sell = price_buy
+          price_sell = price_sell * (1 - self.FEE/100)
+          open_position = False
+          self.balance = round(self.balance+price_sell*quantity, 2)
+          new_deal = types.Deals(
+              time=i,
+              transaction=price_sell*quantity,
+              balance=self.balance,
+              price=price_sell,
+              quantity=quantity,
+              action='close_buy',
+              confidence=self.data.loc[i, 'confidence'],
           )
 
       if (not new_deal == NotImplemented):
@@ -189,7 +235,7 @@ class ML:
     """Строит график на основе результатов."""
     cnx = sqlite3.connect(self.storage)
     input = pd.read_sql_query(
-        "SELECT time, price, action FROM deals",
+        "SELECT time, price, action, confidence FROM deals",
         cnx
     )
     total_nan_count = input.isna().sum().sum()
@@ -201,6 +247,7 @@ class ML:
         y=input[input['action'] == 'buy']['price'],
         mode='markers',
         marker=dict(symbol='triangle-up', size=10, color='limegreen'),
+        text=input[input['action'] == 'buy']['confidence'],
         name='Купить'
     ), row=row, col=col)
 
@@ -209,6 +256,7 @@ class ML:
         y=input[input['action'] == 'close_buy']['price'],
         mode='markers',
         marker=dict(symbol='triangle-down', size=10, color='grey'),
+        text=input[input['action'] == 'close_buy']['confidence'],
         name='Закрыть покупку'
     ), row=row, col=col)
 

@@ -15,3 +15,4 @@ class Deals(Base):
   price = Column(Float(), nullable=False)
   quantity = Column(Integer(), nullable=False)
   action = Column(String(16), nullable=False)
+  confidence = Column(Float(), nullable=False)

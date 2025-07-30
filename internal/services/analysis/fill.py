@@ -37,11 +37,18 @@ if __name__ == '__main__':
 
   # 3. Получение данных по одному дню только 3 минуты = данные для прогнозирования
   m = '07'
-  d = '10'
+  d = '08'  # 11
+  week = True
+  if week:
+    d1 = '07'
+    d2 = '11'
+  else:
+    d1 = d
+    d2 = d
   analysis = Analysis(
       'shares_3m', 'analysis_3m', type='get',
       need_major=True,
-      all=False, start=f'2025-{m}-{d} 04:00:00.000', end=f'2025-{m}-{d} 23:00:00.00',
+      all=False, start=f'2025-{m}-{d1} 04:00:00.000', end=f'2025-{m}-{d2} 23:00:00.00',
   )
 
   # 4. Прогнозирование

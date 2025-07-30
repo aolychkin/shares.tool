@@ -133,9 +133,9 @@ class Analysis:
       # 'change_max',
   ]
 
-  WINDOW_SIZE = 20
+  WINDOW_SIZE = 30
   # Надо синхронизировать со стратегией оба параметра (CATEGORIES, CONFIDENCE)
-  CATEGORIES = ['Падение (< -0.2%)', 'Стабильность (-0.2% до 0.2%)', 'Рост (> 0.2%)']
+  CATEGORIES = ['Падение (< -0.3%)', 'Стабильность (-0.3% до 0.3%)', 'Рост (> 0.3%)']
   CONFIDENCE = 0.85  # 0.88
 
   def __init__(
